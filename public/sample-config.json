@@ -1,0 +1,46 @@
+{
+  "staffs": [
+    {
+      "id": "s01",
+      "name": "山田 太郎",
+      "employmentType": "fulltime",
+      "eligibleShifts": ["early", "late"],
+      "targetDaysOff": 9
+    },
+    {
+      "id": "s02",
+      "name": "鈴木 花子",
+      "employmentType": "short",
+      "eligibleShifts": ["short_early", "short_late"],
+      "targetDaysOff": 9
+    },
+    {
+      "id": "s03",
+      "name": "佐藤 次郎",
+      "employmentType": "fulltime",
+      "eligibleShifts": ["early", "late"],
+      "targetDaysOff": 9
+    },
+    {
+      "id": "p01",
+      "name": "田中 一郎",
+      "employmentType": "part",
+      "eligibleShifts": ["early", "late"],
+      "targetDaysOff": 0
+    },
+    {
+      "id": "p02",
+      "name": "伊藤 三郎",
+      "employmentType": "part",
+      "eligibleShifts": ["early"],
+      "targetDaysOff": 0
+    }
+  ],
+  "shiftTypes": [
+    { "id": "early",       "label": "早番",     "startTime": "08:00", "endTime": "17:00", "color": "#90EE90" },
+    { "id": "late",        "label": "遅番",     "startTime": "11:00", "endTime": "20:00", "color": "#FFD700" },
+    { "id": "short_early", "label": "時短早番", "startTime": "08:00", "endTime": "15:00", "color": "#ADD8E6" },
+    { "id": "short_late",  "label": "時短遅番", "startTime": "13:00", "endTime": "20:00", "color": "#DDA0DD" },
+    { "id": "off",         "label": "休み",     "startTime": null,    "endTime": null,    "color": "#F5F5F5" }
+  ]
+}
