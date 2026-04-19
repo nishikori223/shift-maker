@@ -166,6 +166,19 @@ export default function Requests({
     }
   }
 
+  // 週ごとのイベント最大件数（最小1）を計算 → 同一週の全セルで高さを揃える
+  const EVENT_SLOT_H = 22
+  const dateToWeekIdx = new Map<string, number>()
+  for (const date of dates) {
+    const dayNum = new Date(date).getDate()
+    dateToWeekIdx.set(date, Math.floor((firstDayOfWeek + dayNum - 1) / 7))
+  }
+  const totalWeeks = Math.ceil((firstDayOfWeek + dates.length) / 7)
+  const weekMaxEvents = Array.from({ length: totalWeeks }, (_, wi) => {
+    const datesInWeek = dates.filter(d => dateToWeekIdx.get(d) === wi)
+    return Math.max(1, ...datesInWeek.map(d => (eventsByDate.get(d) ?? []).length))
+  })
+
   // 全スタッフの入力サマリーを計算
   const staffSummaries = config.staffs.map((staff) => {
     const req = requests.find(
@@ -369,13 +382,13 @@ export default function Requests({
                       key={date}
                       className={`border-b border-r border-gray-100 flex flex-col ${isColEnd ? 'border-r-0' : ''}`}
                     >
-                      {/* 上段: 日付 + イベントスロット（最大2件分の固定高さ） */}
+                      {/* 上段: 日付 + イベントスロット（最小1件分・週内で同一高さ） */}
                       <div className="px-1 pt-1 pb-1 border-b border-gray-100">
                         <div className={`text-xs font-medium mb-0.5 ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : 'text-gray-600'}`}>
                           {dayNum}
                         </div>
-                        <div className="h-[44px] flex flex-col gap-0.5">
-                          {dayEvents.slice(0, 2).map((evt) => (
+                        <div className="flex flex-col gap-0.5" style={{ minHeight: `${weekMaxEvents[dateToWeekIdx.get(date)!] * EVENT_SLOT_H}px` }}>
+                          {dayEvents.map((evt) => (
                             <div
                               key={evt.id}
                               className="relative flex-shrink-0"

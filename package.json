@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "homepage": "https://your-github-username.github.io/shift-maker",
+  "homepage": "https://nishikori223.github.io/shift-maker",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
