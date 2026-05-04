@@ -38,6 +38,7 @@ export default function Settings({ config, onConfigChange }: Props) {
     employmentType: 'fulltime',
     eligibleShifts: ['early', 'late'],
     targetDaysOff: 9,
+    kajitaMode: false,
   }
 
   const [staffForm, setStaffForm] = useState<Omit<Staff, 'id'>>(emptyStaff)
@@ -54,6 +55,7 @@ export default function Settings({ config, onConfigChange }: Props) {
       employmentType: staff.employmentType,
       eligibleShifts: [...staff.eligibleShifts],
       targetDaysOff: staff.targetDaysOff,
+      kajitaMode: staff.kajitaMode ?? false,
     })
     setEditingStaff(staff)
     setIsAddingStaff(false)
@@ -343,6 +345,31 @@ export default function Settings({ config, onConfigChange }: Props) {
                 </div>
               </div>
             </div>
+            {/* 梶田モード トグル */}
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setStaffForm((prev) => ({ ...prev, kajitaMode: !prev.kajitaMode }))}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${
+                  staffForm.kajitaMode ? 'bg-blue-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                    staffForm.kajitaMode ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="text-sm font-medium text-gray-700">梶田モード</span>
+              <div className="relative group">
+                <span className="text-gray-400 cursor-help select-none text-sm leading-none">ⓘ</span>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal text-center">
+                  休みの前日は早番、休みの翌日は遅番に設定されます。
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <button
                 onClick={handleSaveStaff}
@@ -369,6 +396,7 @@ export default function Settings({ config, onConfigChange }: Props) {
                 <th className="px-4 py-2 text-left font-medium text-gray-600">雇用区分</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-600">目標休日数</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-600">入れるシフト</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-600">梶田モード</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-600">操作</th>
               </tr>
             </thead>
@@ -413,6 +441,15 @@ export default function Settings({ config, onConfigChange }: Props) {
                     </div>
                   </td>
                   <td className="px-4 py-2">
+                    {staff.kajitaMode ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                        ON
+                      </span>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEditStaff(staff)}
@@ -432,7 +469,7 @@ export default function Settings({ config, onConfigChange }: Props) {
               ))}
               {config.staffs.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                     スタッフが登録されていません
                   </td>
                 </tr>

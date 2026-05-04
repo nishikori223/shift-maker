@@ -64,23 +64,30 @@ export default function Requests({
     // 同じを選んだら解除
     const newValue = current === shiftId ? undefined : shiftId
 
-    // 希望休の上限チェック
-    if (newValue === 'off' && shiftId === 'off') {
-      const currentOffCount = Object.values(currentRequest.requests).filter(
-        (v) => v === 'off',
-      ).length
-      const wasOff = current === 'off'
-      if (!wasOff && currentOffCount >= MAX_OFF_REQUESTS) {
-        showMessage('error', `希望休は最大${MAX_OFF_REQUESTS}日までです`)
-        return
-      }
-    }
 
     const newRequests = { ...currentRequest.requests }
     if (newValue === undefined) {
       delete newRequests[date]
     } else {
       newRequests[date] = newValue
+    }
+
+    // 梶田モード: 休み希望を設定した場合、前日を早番・翌日を遅番に自動セット
+    if (selectedStaff.kajitaMode && newValue === 'off') {
+      const [y, mo, d] = date.split('-').map(Number)
+      const toDateStr = (dt: Date) =>
+        `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+      const prevDate = toDateStr(new Date(y, mo - 1, d - 1))
+      const nextDate = toDateStr(new Date(y, mo - 1, d + 1))
+
+      // 前日が月内かつ休み希望でない場合のみ早番に設定
+      if (dates.includes(prevDate) && newRequests[prevDate] !== 'off') {
+        newRequests[prevDate] = 'early'
+      }
+      // 翌日が月内の場合は遅番に設定
+      if (dates.includes(nextDate)) {
+        newRequests[nextDate] = 'late'
+      }
     }
 
     const newStaffRequest: StaffRequest = {
@@ -286,6 +293,13 @@ export default function Requests({
             </div>
           )}
 
+          {/* 希望休上限超過の常時警告 */}
+          {!isPart && offCount > MAX_OFF_REQUESTS && (
+            <div className="mb-3 px-4 py-2 rounded text-sm bg-red-100 text-red-800 border border-red-300">
+              希望休が{MAX_OFF_REQUESTS}日を超えています（現在{offCount}日）
+            </div>
+          )}
+
           <div className="flex gap-4 items-start">
 
             {/* ===== 左サイドバー: 全員サマリー ===== */}
@@ -377,15 +391,28 @@ export default function Requests({
                   const isColEnd = (firstDayOfWeek + dayNum - 1) % 7 === 6
                   const dayEvents = eventsByDate.get(date) ?? []
 
+                  // いずれかのイベントで必須スタッフが休み以外の希望を未設定
+                  const isRequiredAndUnset = dayEvents.some((evt) =>
+                    evt.requiredStaffIds?.some((staffId) => {
+                      const pref = requests.find(
+                        (r) => r.staffId === staffId && r.year === year && r.month === month
+                      )?.requests[date]
+                      return pref === undefined || pref === 'off'
+                    })
+                  )
+
                   return (
                     <div
                       key={date}
-                      className={`border-b border-r border-gray-100 flex flex-col ${isColEnd ? 'border-r-0' : ''}`}
+                      className={`border-b border-r flex flex-col ${isColEnd ? 'border-r-0' : ''} ${isRequiredAndUnset ? 'border-orange-300 bg-orange-50' : 'border-gray-100'}`}
                     >
                       {/* 上段: 日付 + イベントスロット（最小1件分・週内で同一高さ） */}
-                      <div className="px-1 pt-1 pb-1 border-b border-gray-100">
-                        <div className={`text-xs font-medium mb-0.5 ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : 'text-gray-600'}`}>
+                      <div className={`px-1 pt-1 pb-1 border-b ${isRequiredAndUnset ? 'border-orange-200' : 'border-gray-100'}`}>
+                        <div className={`text-xs font-medium mb-0.5 flex items-center gap-0.5 ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : 'text-gray-600'}`}>
                           {dayNum}
+                          {isRequiredAndUnset && (
+                            <span className="text-orange-500 font-bold leading-none">!</span>
+                          )}
                         </div>
                         <div className="flex flex-col gap-0.5" style={{ minHeight: `${weekMaxEvents[dateToWeekIdx.get(date)!] * EVENT_SLOT_H}px` }}>
                           {dayEvents.map((evt) => (
@@ -395,12 +422,26 @@ export default function Requests({
                               onMouseEnter={() => setOpenEventId(evt.id)}
                               onMouseLeave={() => setOpenEventId(null)}
                             >
-                              <div className="text-xs px-1 py-0.5 rounded bg-violet-100 text-violet-700 border border-violet-200 truncate leading-tight cursor-pointer">
+                              <div className={`text-xs px-1 py-0.5 rounded truncate leading-tight cursor-pointer border ${
+                                evt.requiredStaffIds?.some((staffId) => {
+                                  const pref = requests.find(
+                                    (r) => r.staffId === staffId && r.year === year && r.month === month
+                                  )?.requests[date]
+                                  return pref === undefined || pref === 'off'
+                                })
+                                  ? 'bg-orange-100 text-orange-700 border-orange-300'
+                                  : 'bg-violet-100 text-violet-700 border-violet-200'
+                              }`}>
                                 {evt.name}
                               </div>
                               {openEventId === evt.id && (
-                                <div className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-50">
-                                  {evt.startTime}〜{evt.endTime}
+                                <div className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded z-50 whitespace-nowrap">
+                                  <div>{evt.startTime}〜{evt.endTime}</div>
+                                  {evt.requiredStaffIds && evt.requiredStaffIds.length > 0 && (
+                                    <div className="mt-0.5 text-violet-300">
+                                      必須: {evt.requiredStaffIds.map((id) => config.staffs.find((s) => s.id === id)?.name).filter(Boolean).join('・')}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

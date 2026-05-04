@@ -278,7 +278,29 @@ function assignShiftsForDate(
  * R6: 時短社員には early/late を割り当てない（eligibleShifts で制御）
  * R7: 固定休日なし
  */
+const MAX_RETRIES = 50
+const VIOLATION_THRESHOLD = 10
+
 export function generateSchedule(
+  config: Config,
+  requests: RequestsData,
+  year: number,
+  month: number,
+): ScheduleResult {
+  let best: ScheduleResult | null = null
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const result = generateScheduleOnce(config, requests, year, month)
+    if (best === null || result.violations.length < best.violations.length) {
+      best = result
+    }
+    if (best.violations.length <= VIOLATION_THRESHOLD) break
+  }
+
+  return best!
+}
+
+function generateScheduleOnce(
   config: Config,
   requests: RequestsData,
   year: number,
@@ -401,6 +423,34 @@ export function generateSchedule(
     // カバレッジ優先→バランス優先でシフトを割り当て
     if (pendingEmployees.length > 0) {
       assignShiftsForDate(pendingEmployees, date, schedule, shiftCount, stMap, intervals, config)
+    }
+  }
+
+  // ── 梶田モード: 休みの前日を早番・翌日を遅番に強制 ──────────────────────────
+  const earlyShift = config.shiftTypes.find((st) => st.label === '早番')
+  const lateShift  = config.shiftTypes.find((st) => st.label === '遅番')
+
+  if (earlyShift && lateShift) {
+    const toDateStr = (dt: Date) =>
+      `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+
+    for (const staff of config.staffs.filter((s) => s.kajitaMode)) {
+      for (const date of dates) {
+        if (schedule[staff.id]?.[date]?.shiftTypeId !== 'off') continue
+
+        const [y, mo, d] = date.split('-').map(Number)
+        const prevDate = toDateStr(new Date(y, mo - 1, d - 1))
+        const nextDate = toDateStr(new Date(y, mo - 1, d + 1))
+
+        // 前日が月内かつ休みでない場合のみ早番に設定
+        if (dates.includes(prevDate) && schedule[staff.id]?.[prevDate]?.shiftTypeId !== 'off') {
+          schedule[staff.id][prevDate] = { shiftTypeId: earlyShift.id, isViolation: false }
+        }
+        // 翌日が月内かつ休みでない場合のみ遅番に設定
+        if (dates.includes(nextDate) && schedule[staff.id]?.[nextDate]?.shiftTypeId !== 'off') {
+          schedule[staff.id][nextDate] = { shiftTypeId: lateShift.id, isViolation: false }
+        }
+      }
     }
   }
 

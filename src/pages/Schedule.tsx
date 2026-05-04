@@ -177,9 +177,6 @@ export default function Schedule({
           <div className="space-y-1 max-h-40 overflow-y-auto">
             {violations.map((v, i) => (
               <div key={i} className="text-sm text-orange-700">
-                <span className="font-mono text-xs bg-orange-100 px-1 rounded mr-2">
-                  {v.rule}
-                </span>
                 {v.message}
               </div>
             ))}

@@ -11,6 +11,7 @@ export interface Staff {
   employmentType: EmploymentType
   eligibleShifts: ShiftTypeId[]
   targetDaysOff: number
+  kajitaMode?: boolean
 }
 
 // シフト種別定義
@@ -71,9 +72,10 @@ export interface ScheduleResult {
 export interface CalendarEvent {
   id: string
   name: string
-  date: string       // "YYYY-MM-DD"
-  startTime: string  // "HH:MM"
-  endTime: string    // "HH:MM"
+  date: string            // "YYYY-MM-DD"
+  startTime: string       // "HH:MM"
+  endTime: string         // "HH:MM"
+  requiredStaffIds?: string[]
 }
 
 export type EventsData = CalendarEvent[]

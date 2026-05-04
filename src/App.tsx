@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import logo from './image/logo.png'
 import type { Config, RequestsData, ScheduleData, Violation, EventsData } from './types'
 import Settings from './pages/Settings'
 import Requests from './pages/Requests'
@@ -6,66 +7,8 @@ import Schedule from './pages/Schedule'
 import Events from './pages/Events'
 
 const DEFAULT_CONFIG: Config = {
-  staffs: [
-    {
-      id: 's01',
-      name: '山田 太郎',
-      employmentType: 'fulltime',
-      eligibleShifts: ['early', 'late'],
-      targetDaysOff: 9,
-    },
-    {
-      id: 's02',
-      name: '鈴木 花子',
-      employmentType: 'short',
-      eligibleShifts: ['short_early', 'short_late'],
-      targetDaysOff: 9,
-    },
-    {
-      id: 'p01',
-      name: '田中 一郎',
-      employmentType: 'part',
-      eligibleShifts: ['early', 'late'],
-      targetDaysOff: 0,
-    },
-  ],
-  shiftTypes: [
-    {
-      id: 'early',
-      label: '早番',
-      startTime: '08:00',
-      endTime: '17:00',
-      color: '#90EE90',
-    },
-    {
-      id: 'late',
-      label: '遅番',
-      startTime: '11:00',
-      endTime: '20:00',
-      color: '#FFD700',
-    },
-    {
-      id: 'short_early',
-      label: '時短早番',
-      startTime: '08:00',
-      endTime: '15:00',
-      color: '#ADD8E6',
-    },
-    {
-      id: 'short_late',
-      label: '時短遅番',
-      startTime: '13:00',
-      endTime: '20:00',
-      color: '#DDA0DD',
-    },
-    {
-      id: 'off',
-      label: '休み',
-      startTime: null,
-      endTime: null,
-      color: '#F5F5F5',
-    },
-  ],
+  staffs: [],
+  shiftTypes: [],
 }
 
 type TabId = 'settings' | 'requests' | 'schedule' | 'events'
@@ -98,28 +41,49 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
-      <header className="bg-white border-b border-gray-200 shadow-sm no-print">
+      <header className="bg-white border-b border-gray-200 shadow-sm no-print relative">
         <div className="max-w-7xl mx-auto px-4">
+          {/* ロゴ行 */}
           <div className="flex items-center justify-between h-14">
-            <h1 className="text-lg font-bold text-gray-800">
-              シフト表自動作成アプリ
-            </h1>
+            {/* 左: アプリ名 */}
+            <h1 className="text-lg font-bold text-gray-800">シフト表自動作成アプリ</h1>
 
-            {/* 年月セレクター */}
-            <div className="flex items-center gap-2 text-sm">
+            {/* 中央: ロゴ画像 */}
+            <div className="absolute left-1/2 -translate-x-1/2">
+              <img src={logo} alt="ロゴ" className="h-14 object-contain" />
+            </div>
+
+            {/* 右: スペーサー */}
+            <div className="w-40" />
+          </div>
+
+          {/* タブ + 年月セレクター */}
+          <nav className="flex items-center justify-between -mb-px">
+            <div className="flex">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 text-sm pb-1">
               <label className="text-gray-600">対象月:</label>
               <select
                 value={year}
                 onChange={(e) => setYear(Number(e.target.value))}
                 className="px-2 py-1 border border-gray-300 rounded text-sm"
               >
-                {Array.from({ length: 5 }, (_, i) => initYear - 1 + i).map(
-                  (y) => (
-                    <option key={y} value={y}>
-                      {y}年
-                    </option>
-                  ),
-                )}
+                {Array.from({ length: 5 }, (_, i) => initYear - 1 + i).map((y) => (
+                  <option key={y} value={y}>{y}年</option>
+                ))}
               </select>
               <select
                 value={month}
@@ -127,29 +91,10 @@ export default function App() {
                 className="px-2 py-1 border border-gray-300 rounded text-sm"
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>
-                    {m}月
-                  </option>
+                  <option key={m} value={m}>{m}月</option>
                 ))}
               </select>
             </div>
-          </div>
-
-          {/* タブ */}
-          <nav className="flex -mb-px">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
           </nav>
         </div>
       </header>
@@ -171,6 +116,7 @@ export default function App() {
         )}
         {activeTab === 'events' && (
           <Events
+            config={config}
             events={events}
             year={year}
             month={month}

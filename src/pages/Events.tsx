@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
-import type { CalendarEvent, EventsData } from '../types'
+import type { CalendarEvent, Config, EventsData } from '../types'
 import { downloadJson, readJsonFile } from '../utils/excelExport'
 
 interface Props {
+  config: Config
   events: EventsData
   year: number
   month: number
@@ -13,10 +14,11 @@ function newId() {
   return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-export default function Events({ events, year, month, onEventsChange }: Props) {
+export default function Events({ config, events, year, month, onEventsChange }: Props) {
   const defaultDate = `${year}-${String(month).padStart(2, '0')}-01`
-  const emptyForm = () => ({ name: '', date: defaultDate, startTime: '', endTime: '' })
+  const emptyForm = () => ({ name: '', date: defaultDate, startTime: '', endTime: '', requiredStaffIds: [] as string[] })
   const [form, setForm] = useState(emptyForm)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -54,13 +56,18 @@ export default function Events({ events, year, month, onEventsChange }: Props) {
     .filter((e) => e.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
 
+  const validateForm = () => {
+    if (!form.name.trim()) { setError('イベント名を入力してください'); return false }
+    if (!form.date) { setError('日付を入力してください'); return false }
+    if (!form.startTime) { setError('開始時間を入力してください'); return false }
+    if (!form.endTime) { setError('終了時間を入力してください'); return false }
+    if (form.endTime <= form.startTime) { setError('終了時間は開始時間より後にしてください'); return false }
+    return true
+  }
+
   const handleAdd = () => {
     setError(null)
-    if (!form.name.trim()) { setError('イベント名を入力してください'); return }
-    if (!form.date) { setError('日付を入力してください'); return }
-    if (!form.startTime) { setError('開始時間を入力してください'); return }
-    if (!form.endTime) { setError('終了時間を入力してください'); return }
-    if (form.endTime <= form.startTime) { setError('終了時間は開始時間より後にしてください'); return }
+    if (!validateForm()) return
 
     const newEvent: CalendarEvent = {
       id: newId(),
@@ -68,13 +75,57 @@ export default function Events({ events, year, month, onEventsChange }: Props) {
       date: form.date,
       startTime: form.startTime,
       endTime: form.endTime,
+      requiredStaffIds: form.requiredStaffIds.length > 0 ? form.requiredStaffIds : undefined,
     }
     onEventsChange([...events, newEvent])
     setForm(emptyForm())
   }
 
+  const handleEdit = (evt: CalendarEvent) => {
+    setEditingId(evt.id)
+    setForm({
+      name: evt.name,
+      date: evt.date,
+      startTime: evt.startTime,
+      endTime: evt.endTime,
+      requiredStaffIds: evt.requiredStaffIds ?? [],
+    })
+    setError(null)
+  }
+
+  const handleUpdate = () => {
+    setError(null)
+    if (!validateForm()) return
+
+    onEventsChange(events.map((e) =>
+      e.id === editingId
+        ? {
+            ...e,
+            name: form.name.trim(),
+            date: form.date,
+            startTime: form.startTime,
+            endTime: form.endTime,
+            requiredStaffIds: form.requiredStaffIds.length > 0 ? form.requiredStaffIds : undefined,
+          }
+        : e,
+    ))
+    setEditingId(null)
+    setForm(emptyForm())
+    showMessage('success', 'イベントを更新しました')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setForm(emptyForm())
+    setError(null)
+  }
+
   const handleDelete = (id: string) => {
     onEventsChange(events.filter((e) => e.id !== id))
+    if (editingId === id) {
+      setEditingId(null)
+      setForm(emptyForm())
+    }
   }
 
   return (
@@ -117,8 +168,10 @@ export default function Events({ events, year, month, onEventsChange }: Props) {
       )}
 
       {/* 入力フォーム */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-        <h2 className="text-sm font-semibold text-gray-600 mb-3">新しいイベントを追加</h2>
+      <div className={`bg-white border rounded-lg p-4 mb-6 ${editingId ? 'border-violet-300 ring-1 ring-violet-200' : 'border-gray-200'}`}>
+        <h2 className="text-sm font-semibold text-gray-600 mb-3">
+          {editingId ? 'イベントを編集' : '新しいイベントを追加'}
+        </h2>
 
         {error && (
           <div className="mb-3 px-3 py-2 bg-red-50 border border-red-300 rounded text-sm text-red-700">
@@ -172,13 +225,61 @@ export default function Events({ events, year, month, onEventsChange }: Props) {
             </div>
           </div>
 
-          <div>
-            <button
-              onClick={handleAdd}
-              className="px-4 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
-            >
-              追加
-            </button>
+          {/* 必須スタッフ */}
+          {config.staffs.length > 0 && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">必須スタッフ（任意）</label>
+              <div className="flex flex-wrap gap-2">
+                {config.staffs.map((staff) => {
+                  const checked = form.requiredStaffIds.includes(staff.id)
+                  return (
+                    <button
+                      key={staff.id}
+                      type="button"
+                      onClick={() => {
+                        const ids = checked
+                          ? form.requiredStaffIds.filter((id) => id !== staff.id)
+                          : [...form.requiredStaffIds, staff.id]
+                        setForm({ ...form, requiredStaffIds: ids })
+                      }}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        checked
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-violet-400 hover:text-violet-600'
+                      }`}
+                    >
+                      {staff.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            {editingId ? (
+              <>
+                <button
+                  onClick={handleUpdate}
+                  className="px-4 py-1.5 bg-violet-600 text-white rounded hover:bg-violet-700 text-sm font-medium"
+                >
+                  更新
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-4 py-1.5 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm font-medium"
+                >
+                  キャンセル
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleAdd}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+              >
+                追加
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -205,21 +306,45 @@ export default function Events({ events, year, month, onEventsChange }: Props) {
               return (
                 <li
                   key={evt.id}
-                  className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2.5"
+                  className={`bg-white border rounded-lg px-4 py-2.5 ${editingId === evt.id ? 'border-violet-400 bg-violet-50' : 'border-gray-200'}`}
                 >
-                  <div className="w-2 h-2 rounded-full bg-violet-400 flex-shrink-0" />
-                  <span className="text-sm text-gray-500 flex-shrink-0 w-24">{dayLabel}</span>
-                  <span className="text-sm font-medium text-gray-800 flex-1 truncate">{evt.name}</span>
-                  <span className="text-xs text-gray-500 flex-shrink-0">
-                    {evt.startTime}〜{evt.endTime}
-                  </span>
-                  <button
-                    onClick={() => handleDelete(evt.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 text-lg leading-none"
-                    title="削除"
-                  >
-                    ×
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-violet-400 flex-shrink-0" />
+                    <span className="text-sm text-gray-500 flex-shrink-0 w-24">{dayLabel}</span>
+                    <span className="text-sm font-medium text-gray-800 flex-1 truncate">{evt.name}</span>
+                    <span className="text-xs text-gray-500 flex-shrink-0">
+                      {evt.startTime}〜{evt.endTime}
+                    </span>
+                    <button
+                      onClick={() => handleEdit(evt)}
+                      className="text-blue-400 hover:text-blue-600 transition-colors flex-shrink-0 text-xs font-medium"
+                      title="編集"
+                    >
+                      編集
+                    </button>
+                    <button
+                      onClick={() => handleDelete(evt.id)}
+                      className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 text-lg leading-none"
+                      title="削除"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {evt.requiredStaffIds && evt.requiredStaffIds.length > 0 && (
+                    <div className="mt-1.5 ml-5 flex flex-wrap gap-1">
+                      {evt.requiredStaffIds.map((staffId) => {
+                        const staff = config.staffs.find((s) => s.id === staffId)
+                        return staff ? (
+                          <span
+                            key={staffId}
+                            className="px-2 py-0.5 bg-violet-100 text-violet-700 text-xs rounded-full"
+                          >
+                            {staff.name}
+                          </span>
+                        ) : null
+                      })}
+                    </div>
+                  )}
                 </li>
               )
             })}
