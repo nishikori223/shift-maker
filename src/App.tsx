@@ -126,6 +126,7 @@ export default function App() {
         {activeTab === 'schedule' && (
           <Schedule
             config={config}
+            events={events}
             requests={requests}
             year={year}
             month={month}

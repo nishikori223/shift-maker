@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
-import type { Config, RequestsData, ScheduleData, Violation } from '../types'
+import { useState, useCallback, useRef } from 'react'
+import type { Config, EventsData, RequestsData, ScheduleData, Violation } from '../types'
+import DayTimetable from './DayTimetable'
 import {
   generateSchedule,
   revalidateSchedule,
@@ -8,10 +9,18 @@ import {
   countWorkDays,
   updateCell,
 } from '../engine/scheduler'
-import { exportToExcel } from '../utils/excelExport'
+import { exportToExcel, downloadJson, readJsonFile } from '../utils/excelExport'
+
+interface ScheduleSnapshot {
+  year: number
+  month: number
+  schedule: ScheduleData
+  violations: Violation[]
+}
 
 interface Props {
   config: Config
+  events: EventsData
   requests: RequestsData
   year: number
   month: number
@@ -25,6 +34,7 @@ interface Props {
 
 export default function Schedule({
   config,
+  events,
   requests,
   year,
   month,
@@ -39,6 +49,14 @@ export default function Schedule({
     staffId: string
     date: string
   } | null>(null)
+  const [timetableDate, setTimetableDate] = useState<string | null>(null)
+  const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const showImportMessage = (type: 'success' | 'error', text: string) => {
+    setImportMessage({ type, text })
+    setTimeout(() => setImportMessage(null), 3000)
+  }
 
   const dates = getDatesInMonth(year, month)
   const shiftTypeMap = new Map(config.shiftTypes.map((s) => [s.id, s]))
@@ -92,6 +110,39 @@ export default function Schedule({
     exportToExcel(config, schedule, requests, year, month)
   }
 
+  // シフトJSON出力
+  const handleScheduleExport = () => {
+    if (!schedule) return
+    const mm = String(month).padStart(2, '0')
+    const snapshot: ScheduleSnapshot = { year, month, schedule, violations }
+    downloadJson(snapshot, `schedule_${year}${mm}.json`)
+  }
+
+  // シフトJSON読込み
+  const handleScheduleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const data = await readJsonFile<ScheduleSnapshot>(file)
+      if (!data.schedule || typeof data.year !== 'number' || typeof data.month !== 'number') {
+        showImportMessage('error', 'ファイルの形式が正しくありません')
+        return
+      }
+      if (data.year !== year || data.month !== month) {
+        showImportMessage('error', `対象月が一致しません（ファイル: ${data.year}年${data.month}月）`)
+        return
+      }
+      onScheduleChange(data.schedule)
+      onViolationsChange(data.violations ?? [])
+      onIsGeneratedChange(true)
+      setEditingCell(null)
+      showImportMessage('success', 'シフトデータを読み込みました')
+    } catch {
+      showImportMessage('error', 'ファイルの読み込みに失敗しました')
+    }
+    e.target.value = ''
+  }
+
   // 印刷
   const handlePrint = () => {
     window.print()
@@ -131,30 +182,59 @@ export default function Schedule({
         </h1>
         <div className="flex gap-2 flex-wrap">
           <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+          >
+            読込み
+          </button>
+          <button
             onClick={handleGenerate}
             disabled={config.staffs.length === 0}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 text-sm font-medium"
+            className="px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 text-sm"
           >
             シフト生成
           </button>
           {isGenerated && (
             <>
               <button
+                onClick={handleScheduleExport}
+                className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+              >
+                ダウンロード
+              </button>
+              <button
                 onClick={handleExport}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"
+                className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
               >
                 Excel出力
               </button>
               <button
                 onClick={handlePrint}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm font-medium"
+                className="px-3 py-1.5 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
               >
                 印刷
               </button>
             </>
           )}
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={handleScheduleImport}
+        />
       </div>
+
+      {importMessage && (
+        <div className={`mb-4 px-4 py-2 rounded text-sm no-print ${
+          importMessage.type === 'success'
+            ? 'bg-green-100 text-green-800 border border-green-300'
+            : 'bg-red-100 text-red-800 border border-red-300'
+        }`}>
+          {importMessage.text}
+        </div>
+      )}
 
       {config.staffs.length === 0 && (
         <div className="text-center text-gray-400 py-16">
@@ -208,15 +288,17 @@ export default function Schedule({
                   return (
                     <th
                       key={date}
-                      className={`border border-gray-300 px-1 py-1 text-center min-w-[52px] ${
+                      className={`border border-gray-300 px-1 py-1 text-center min-w-[52px] cursor-pointer hover:brightness-90 transition-all ${
                         dayOfWeek === 0
                           ? 'bg-red-100 text-red-700'
                           : dayOfWeek === 6
                             ? 'bg-blue-100 text-blue-700'
                             : 'bg-gray-700 text-white'
                       }`}
+                      onClick={() => setTimetableDate(date)}
+                      title={`${dayNum}日のタイムテーブルを表示`}
                     >
-                      <div>{dayNum}</div>
+                      <div className="underline underline-offset-2 decoration-dotted">{dayNum}</div>
                       <div className="text-xs opacity-80">
                         {DAY_NAMES[dayOfWeek]}
                       </div>
@@ -432,6 +514,17 @@ export default function Schedule({
       <div className="hidden print:block mt-2 text-center text-sm text-gray-400">
         {year}年{month}月 シフト表
       </div>
+
+      {/* タイムテーブルモーダル */}
+      {timetableDate && schedule && (
+        <DayTimetable
+          date={timetableDate}
+          config={config}
+          schedule={schedule}
+          events={events}
+          onClose={() => setTimetableDate(null)}
+        />
+      )}
     </div>
   )
 }

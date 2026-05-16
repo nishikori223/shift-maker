@@ -27,6 +27,34 @@ export default function Settings({ config, onConfigChange }: Props) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // ドラッグ＆ドロップ（スタッフ）
+  const [dragStaffIdx, setDragStaffIdx] = useState<number | null>(null)
+  const [dragOverStaffIdx, setDragOverStaffIdx] = useState<number | null>(null)
+
+  const handleStaffDrop = (toIdx: number) => {
+    if (dragStaffIdx === null || dragStaffIdx === toIdx) return
+    const arr = [...config.staffs]
+    const [item] = arr.splice(dragStaffIdx, 1)
+    arr.splice(toIdx, 0, item)
+    onConfigChange({ ...config, staffs: arr })
+    setDragStaffIdx(null)
+    setDragOverStaffIdx(null)
+  }
+
+  // ドラッグ＆ドロップ（シフト種別）
+  const [dragShiftIdx, setDragShiftIdx] = useState<number | null>(null)
+  const [dragOverShiftIdx, setDragOverShiftIdx] = useState<number | null>(null)
+
+  const handleShiftDrop = (toIdx: number) => {
+    if (dragShiftIdx === null || dragShiftIdx === toIdx) return
+    const arr = [...config.shiftTypes]
+    const [item] = arr.splice(dragShiftIdx, 1)
+    arr.splice(toIdx, 0, item)
+    onConfigChange({ ...config, shiftTypes: arr })
+    setDragShiftIdx(null)
+    setDragOverShiftIdx(null)
+  }
+
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text })
     setTimeout(() => setMessage(null), 3000)
@@ -392,6 +420,7 @@ export default function Settings({ config, onConfigChange }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-gray-100">
               <tr>
+                <th className="w-8" />
                 <th className="px-4 py-2 text-left font-medium text-gray-600">氏名</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-600">雇用区分</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-600">目標休日数</th>
@@ -404,8 +433,20 @@ export default function Settings({ config, onConfigChange }: Props) {
               {config.staffs.map((staff, idx) => (
                 <tr
                   key={staff.id}
-                  className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                  draggable
+                  onDragStart={() => setDragStaffIdx(idx)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverStaffIdx(idx) }}
+                  onDrop={() => handleStaffDrop(idx)}
+                  onDragEnd={() => { setDragStaffIdx(null); setDragOverStaffIdx(null) }}
+                  className={`transition-colors ${
+                    dragStaffIdx === idx
+                      ? 'opacity-40 bg-blue-50'
+                      : dragOverStaffIdx === idx
+                        ? 'bg-blue-100'
+                        : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  }`}
                 >
+                  <td className="pl-2 text-gray-300 hover:text-gray-500 cursor-grab select-none text-base">⠿</td>
                   <td className="px-4 py-2 font-medium">{staff.name}</td>
                   <td className="px-4 py-2">
                     <span
@@ -469,7 +510,7 @@ export default function Settings({ config, onConfigChange }: Props) {
               ))}
               {config.staffs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                     スタッフが登録されていません
                   </td>
                 </tr>
@@ -565,6 +606,7 @@ export default function Settings({ config, onConfigChange }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-gray-100">
               <tr>
+                <th className="w-8" />
                 <th className="px-4 py-2 text-left font-medium text-gray-600">種別</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-600">開始時刻</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-600">終了時刻</th>
@@ -574,7 +616,22 @@ export default function Settings({ config, onConfigChange }: Props) {
             </thead>
             <tbody>
               {config.shiftTypes.map((st, idx) => (
-                <tr key={st.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                <tr
+                  key={st.id}
+                  draggable
+                  onDragStart={() => setDragShiftIdx(idx)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverShiftIdx(idx) }}
+                  onDrop={() => handleShiftDrop(idx)}
+                  onDragEnd={() => { setDragShiftIdx(null); setDragOverShiftIdx(null) }}
+                  className={`transition-colors ${
+                    dragShiftIdx === idx
+                      ? 'opacity-40 bg-blue-50'
+                      : dragOverShiftIdx === idx
+                        ? 'bg-blue-100'
+                        : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  }`}
+                >
+                  <td className="pl-2 text-gray-300 hover:text-gray-500 cursor-grab select-none text-base">⠿</td>
                   <td className="px-4 py-2">
                     <input
                       type="text"
